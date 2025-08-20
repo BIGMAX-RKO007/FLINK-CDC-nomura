@@ -4,9 +4,12 @@ import com.ververica.cdc.connectors.mysql.source.MySqlSource;
 import com.ververica.cdc.connectors.mysql.table.StartupOptions;
 import com.ververica.cdc.debezium.JsonDebeziumDeserializationSchema;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
+import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+
+import java.io.File;
 
 public class DataStream {
     public static void main(String[] args) throws Exception {
@@ -14,6 +17,20 @@ public class DataStream {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(1);//取决与数据量
         //2开启checkpoint
+        File checkpointDir = new File("tmp/checkpoint");
+        if (!checkpointDir.exists()) {
+            checkpointDir.mkdirs(); // 自动创建多级目录
+        }
+
+        String checkpointPath = "file:///" + checkpointDir.getAbsolutePath().replace("\\", "/");
+
+        env.enableCheckpointing(5000L);
+        env.getCheckpointConfig().setCheckpointStorage(checkpointPath);
+        env.getCheckpointConfig().setCheckpointTimeout(10000L);
+        env.getCheckpointConfig().setMaxConcurrentCheckpoints(1);
+        env.getCheckpointConfig().setMinPauseBetweenCheckpoints(5000L);
+        env.getCheckpointConfig().setCheckpointingMode(CheckpointingMode.EXACTLY_ONCE);
+
 
         //3flinkCDC构建mysqlsource
         MySqlSource<String> mysqlSource = MySqlSource.<String>builder()
